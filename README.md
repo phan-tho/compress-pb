@@ -36,10 +36,10 @@ applied to the standard classifier architecture on its own terms.
 
 The split is a seeded permutation of the official training set. Subset A is
 used to train the data-dependent prior and subset B is never read until the
-prior has been frozen. The default is the source paper's selected
-data-dependent setting: 50/50 split, 500 epochs of Adam at learning rate
-0.001, intrinsic dimension zero, no quantization, and a 95% optimized Catoni
-certificate. The source paper reports that intrinsic dimension zero was the
+prior has been frozen. The default matched run uses a 50/50 split, 200 epochs
+of Adam, cosine learning-rate decay from 0.001 to 0.00001, intrinsic dimension
+zero, no quantization, and a 95% optimized Catoni certificate. The source
+paper reports that intrinsic dimension zero was the
 selected configuration for every data-dependent dataset (Appendix E.2,
 Table 7). Since this runner predeclares that single configuration, it incurs no
 hyperparameter-search bits. Use `--misc-extra-bits` if comparing several

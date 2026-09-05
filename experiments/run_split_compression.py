@@ -42,10 +42,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--seed", type=int, default=137)
     parser.add_argument("--prior-fraction", type=float, default=0.5)
-    parser.add_argument("--epochs", type=int, default=500)
+    parser.add_argument("--epochs", type=int, default=200)
     parser.add_argument("--batch-size", type=int, default=128,
                         help="Per-process batch size under torchrun.")
     parser.add_argument("--learning-rate", type=float, default=1e-3)
+    parser.add_argument("--min-learning-rate", type=float, default=1e-5)
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--delta", type=float, default=0.05)
     parser.add_argument("--misc-extra-bits", type=float, default=0.0)
@@ -246,6 +247,11 @@ def main() -> None:
         )
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer,
+        T_max=args.epochs,
+        eta_min=args.min_learning_rate,
+    )
     if rank == 0:
         print(
             f"dataset={args.dataset} architecture={ARCHITECTURES[args.dataset]} "
@@ -255,11 +261,16 @@ def main() -> None:
     for epoch in range(args.epochs):
         if isinstance(train_a.sampler, DistributedSampler):
             train_a.sampler.set_epoch(epoch)
+        current_lr = optimizer.param_groups[0]["lr"]
         average_loss = train_epoch(model, train_a, optimizer, device, world_size)
         if rank == 0 and (
             epoch == 0 or (epoch + 1) % args.log_every == 0 or epoch + 1 == args.epochs
         ):
-            print(f"epoch={epoch + 1}/{args.epochs} train_A_nll={average_loss:.6f}")
+            print(
+                f"epoch={epoch + 1}/{args.epochs} train_A_nll={average_loss:.6f} "
+                f"lr={current_lr:.8f}"
+            )
+        scheduler.step()
 
     metrics_a = evaluate(model, eval_a, device, world_size)
     metrics_b = evaluate(model, certify_b, device, world_size)
@@ -322,6 +333,8 @@ def main() -> None:
             "test_diagnostic": metrics_test,
             "optimizer": "Adam",
             "learning_rate": args.learning_rate,
+            "learning_rate_schedule": "cosine",
+            "minimum_learning_rate": args.min_learning_rate,
             "epochs": args.epochs,
             "batch_size_per_process": args.batch_size,
             "world_size": world_size,
