@@ -29,9 +29,9 @@ from pactl.paper_models import create_paper_model
 
 
 ARCHITECTURES = {
-    "mnist": "two-block-cnn-r32",
-    "cifar10": "preact-wrn-28-4-r128",
-    "cifar100": "preact-wrn-28-4-r256",
+    "mnist": "two-block-cnn-standard-head",
+    "cifar10": "preact-wrn-28-4",
+    "cifar100": "preact-wrn-28-4",
 }
 
 

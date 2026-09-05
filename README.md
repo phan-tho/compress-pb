@@ -25,12 +25,14 @@ We use [Fire](https://google.github.io/python-fire/guide/) for CLI parsing.
 `experiments/run_split_compression.py` runs the data-dependent compression
 baseline with the architectures used by the output-space PAC--Bayes comparison:
 
-* MNIST: two 5x5 convolution/max-pool blocks and a 32-dimensional tanh feature
-  map.
-* CIFAR-10: pre-activation WRN-28-4 and a 128-dimensional LayerNorm/tanh
-  feature map.
-* CIFAR-100: pre-activation WRN-28-4 and a 256-dimensional LayerNorm/tanh
-  feature map.
+* MNIST: two 5x5 convolution/max-pool blocks followed directly by a linear
+  classifier.
+* CIFAR-10 and CIFAR-100: standard pre-activation WRN-28-4 with global average
+  pooling and its standard linear classifier.
+
+The baseline does not use the output-space method's projected feature map,
+LayerNorm, tanh transformation, or rank parameter. The compression method is
+applied to the standard classifier architecture on its own terms.
 
 The split is a seeded permutation of the official training set. Subset A is
 used to train the data-dependent prior and subset B is never read until the

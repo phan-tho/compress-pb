@@ -18,18 +18,18 @@ class TestPaperModels(unittest.TestCase):
     def test_mnist_architecture_shape(self):
         model = PaperMNISTCNN()
         inputs = torch.randn(2, 1, 28, 28)
-        self.assertEqual(model.forward_features(inputs).shape, (2, 32))
+        self.assertEqual(model.forward_features(inputs).shape, (2, 64 * 7 * 7))
         self.assertEqual(model(inputs).shape, (2, 10))
 
     def test_wrn_architecture_shapes(self):
-        for dataset, feature_dim, classes in (
-            ("cifar10", 128, 10),
-            ("cifar100", 256, 100),
+        for dataset, classes in (
+            ("cifar10", 10),
+            ("cifar100", 100),
         ):
             model = create_paper_model(dataset)
             self.assertIsInstance(model, PaperWideResNet)
             inputs = torch.randn(2, 3, 32, 32)
-            self.assertEqual(model.forward_features(inputs).shape, (2, feature_dim))
+            self.assertEqual(model.forward_features(inputs).shape, (2, 256))
             self.assertEqual(model(inputs).shape, (2, classes))
             self.assertEqual(len(model.group1), 4)
             self.assertEqual(len(model.group2), 4)

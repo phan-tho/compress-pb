@@ -1,4 +1,4 @@
-"""Architectures used by the output-space PAC--Bayes comparison paper.
+"""Standard backbones used for the matched compression baseline.
 
 These models are intentionally independent of timm so the benchmark runner can
 use the PyTorch stack preinstalled in Kaggle notebooks.
@@ -12,20 +12,18 @@ from torch.nn import functional as F
 
 
 class PaperMNISTCNN(nn.Module):
-    """Two-block MNIST CNN with the paper's 32-dimensional feature map."""
+    """Two-block MNIST CNN with a direct linear classifier."""
 
-    def __init__(self, num_classes: int = 10, feature_dim: int = 32):
+    def __init__(self, num_classes: int = 10):
         super().__init__()
         self.conv1 = nn.Conv2d(1, 32, kernel_size=5, padding=2)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=5, padding=2)
-        self.feature_projection = nn.Linear(64 * 7 * 7, feature_dim)
-        self.classifier = nn.Linear(feature_dim, num_classes)
+        self.classifier = nn.Linear(64 * 7 * 7, num_classes)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = F.max_pool2d(F.relu(self.conv1(x)), kernel_size=2)
         x = F.max_pool2d(F.relu(self.conv2(x)), kernel_size=2)
-        x = torch.flatten(x, 1)
-        return torch.tanh(self.feature_projection(x))
+        return torch.flatten(x, 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.classifier(self.forward_features(x))
@@ -62,14 +60,13 @@ class PreActWideBasic(nn.Module):
 
 
 class PaperWideResNet(nn.Module):
-    """Pre-activation WRN-28-4 with the paper's projected feature head."""
+    """Standard pre-activation WRN-28-4 classifier."""
 
     def __init__(
         self,
         num_classes: int,
         depth: int = 28,
         widen_factor: int = 4,
-        feature_dim: int = 128,
     ):
         super().__init__()
         if (depth - 4) % 6 != 0:
@@ -88,9 +85,7 @@ class PaperWideResNet(nn.Module):
             widths[2], widths[3], blocks_per_group, stride=2
         )
         self.final_bn = nn.BatchNorm2d(widths[3])
-        self.feature_projection = nn.Linear(widths[3], feature_dim)
-        self.feature_norm = nn.LayerNorm(feature_dim)
-        self.classifier = nn.Linear(feature_dim, num_classes)
+        self.classifier = nn.Linear(widths[3], num_classes)
         self._initialize()
 
     @staticmethod
@@ -113,11 +108,10 @@ class PaperWideResNet(nn.Module):
                 nn.init.kaiming_normal_(
                     module.weight, mode="fan_out", nonlinearity="relu"
                 )
-            elif isinstance(module, (nn.BatchNorm2d, nn.LayerNorm)):
+            elif isinstance(module, nn.BatchNorm2d):
                 nn.init.ones_(module.weight)
                 nn.init.zeros_(module.bias)
             elif isinstance(module, nn.Linear):
-                nn.init.xavier_uniform_(module.weight)
                 if module.bias is not None:
                     nn.init.zeros_(module.bias)
 
@@ -127,10 +121,7 @@ class PaperWideResNet(nn.Module):
         x = self.group2(x)
         x = self.group3(x)
         x = F.relu(self.final_bn(x), inplace=False)
-        x = F.adaptive_avg_pool2d(x, output_size=1).flatten(1)
-        x = self.feature_projection(x)
-        x = self.feature_norm(x)
-        return torch.tanh(x)
+        return F.adaptive_avg_pool2d(x, output_size=1).flatten(1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.classifier(self.forward_features(x))
@@ -138,9 +129,9 @@ class PaperWideResNet(nn.Module):
 
 def create_paper_model(dataset: str) -> nn.Module:
     if dataset == "mnist":
-        return PaperMNISTCNN(num_classes=10, feature_dim=32)
+        return PaperMNISTCNN(num_classes=10)
     if dataset == "cifar10":
-        return PaperWideResNet(num_classes=10, feature_dim=128)
+        return PaperWideResNet(num_classes=10)
     if dataset == "cifar100":
-        return PaperWideResNet(num_classes=100, feature_dim=256)
+        return PaperWideResNet(num_classes=100)
     raise ValueError(f"Unsupported dataset: {dataset}")
