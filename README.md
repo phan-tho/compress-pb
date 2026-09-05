@@ -20,6 +20,48 @@ pip install -e .
 
 We use [Fire](https://google.github.io/python-fire/guide/) for CLI parsing.
 
+### Matched split-prior benchmark
+
+`experiments/run_split_compression.py` runs the data-dependent compression
+baseline with the architectures used by the output-space PAC--Bayes comparison:
+
+* MNIST: two 5x5 convolution/max-pool blocks and a 32-dimensional tanh feature
+  map.
+* CIFAR-10: pre-activation WRN-28-4 and a 128-dimensional LayerNorm/tanh
+  feature map.
+* CIFAR-100: pre-activation WRN-28-4 and a 256-dimensional LayerNorm/tanh
+  feature map.
+
+The split is a seeded permutation of the official training set. Subset A is
+used to train the data-dependent prior and subset B is never read until the
+prior has been frozen. The default is the source paper's selected
+data-dependent setting: 50/50 split, 500 epochs of Adam at learning rate
+0.001, intrinsic dimension zero, no quantization, and a 95% optimized Catoni
+certificate. The source paper reports that intrinsic dimension zero was the
+selected configuration for every data-dependent dataset (Appendix E.2,
+Table 7). Since this runner predeclares that single configuration, it incurs no
+hyperparameter-search bits. Use `--misc-extra-bits` if comparing several
+configurations and selecting one after observing subset B.
+
+The runner reads the Kaggle dataset layouts directly, including the CIFAR-10
+tar archive and the raw MNIST IDX files. A two-GPU run uses DDP and synchronized
+BatchNorm. For an effective global batch size of 128, pass a per-process batch
+size of 64:
+
+```bash
+torchrun --standalone --nproc_per_node=2 \
+  -m experiments.run_split_compression \
+  --dataset cifar10 \
+  --data-root /kaggle/input/datasets/pankrzysiu/cifar10-python \
+  --output-dir /kaggle/working/compress-pb-results/cifar10 \
+  --batch-size 64
+```
+
+The output directory contains `results.json`, `run_config.json`, the exact
+split permutation, and the frozen prior checkpoint. Test error in
+`results.json` is diagnostic only. Runs using `--max-train-examples` are marked
+`"reportable": false` and are intended only as smoke tests.
+
 ### Training Intrinsic Dimensionality Models
 
 
