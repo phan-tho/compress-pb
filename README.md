@@ -64,6 +64,41 @@ split permutation, and the frozen prior checkpoint. Test error in
 `results.json` is diagnostic only. Runs using `--max-train-examples` are marked
 `"reportable": false` and are intended only as smoke tests.
 
+### ImageNet ResNet-18 transfer benchmark
+
+`experiments/run_imagenet_transfer_compression.py` is the separate
+data-independent transfer baseline for CIFAR-10 and CIFAR-100.  It starts with
+the official torchvision ImageNet-1k ResNet-18 weights, replaces only the
+final `fc` layer for the downstream number of classes, and trains every model
+parameter through the source method's seeded structured intrinsic subspace.
+It resizes CIFAR images to 224 pixels and uses ImageNet normalization. ImageNet
+BatchNorm running statistics stay frozen as part of the prior.
+
+The default source-style configurations are: CIFAR-10 uses `d=3000` with the
+`rdkron` projector; CIFAR-100 uses `d=8000` with `filmrdkron`. Both use 500
+epochs of Adam at 0.001 followed by 30 epochs of seven-level uniform
+quantization fine-tuning at 0.003. The CIFAR training set is not split: the
+prior is independent because it was trained on ImageNet.
+
+For Kaggle with two T4 GPUs, attach a dataset containing the official
+`resnet18-f37072fd.pth` checkpoint and set `--weights-path` to its mounted
+path. This avoids relying on an Internet download during the notebook run:
+
+```bash
+torchrun --standalone --nproc_per_node=2 \
+  -m experiments.run_imagenet_transfer_compression \
+  --dataset cifar10 \
+  --data-root /kaggle/input/datasets/pankrzysiu/cifar10-python \
+  --weights-path /kaggle/input/<resnet18-weights>/resnet18-f37072fd.pth \
+  --output-dir /kaggle/working/compress-pb-results/cifar10-imagenet-r18 \
+  --batch-size 64
+```
+
+Use the same command with `--dataset cifar100`, the CIFAR-100 data root, and a
+different output directory. The output contains the ImageNet prior plus new
+head, the exactly decoded quantized posterior, and `results.json`. The test
+metric is a diagnostic; the certificate uses all CIFAR training examples.
+
 ### Training Intrinsic Dimensionality Models
 
 

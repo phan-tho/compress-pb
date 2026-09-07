@@ -91,6 +91,7 @@ def finetune_quantization(
     optimizer,
     lr,
     use_kmeans=False,
+    freeze_batchnorm_statistics=False,
 ):
     vector = model.subspace_params.cpu().data.numpy()
     cluster_fn = get_random_symbols_and_codebook
@@ -101,6 +102,7 @@ def finetune_quantization(
     centroids = centroids.to(device)
     quantizer_fn = Quantize().apply
     qw = QuantizingWrapper(model, quantizer=quantizer_fn, centroids=centroids)
+    qw.freeze_batchnorm_statistics = freeze_batchnorm_statistics
 
     if optimizer == "sgd":
         optimizer = SGD(
@@ -160,6 +162,8 @@ def run_sgd(
 
     for e in tqdm(range(epochs)):
         net.train()
+        if getattr(net, "freeze_batchnorm_statistics", False):
+            _freeze_batchnorm_statistics(net)
         logging.debug(f"centroids: {net.centroids}")
         N_acc = 0
         N = len(train_loader.dataset)
@@ -180,6 +184,19 @@ def run_sgd(
         text = f"Loss: {loss:1.3e} | Acc: {N_acc.item() / N:2.3e}"
         print(text)
         print(f"centroids: {net.centroids}")
+
+
+def _freeze_batchnorm_statistics(net):
+    """Handle wrappers that deliberately keep their forward net unregistered."""
+    roots = [net]
+    while roots:
+        root = roots.pop()
+        hidden = getattr(root, "_forward_net", None)
+        if isinstance(hidden, list) and hidden:
+            roots.append(hidden[0])
+        for child in root.modules():
+            if isinstance(child, nn.modules.batchnorm._BatchNorm):
+                child.eval()
 
 
 def create_assigment_matrix_prune(labels, num_clusters):
@@ -205,6 +222,11 @@ class QuantizingWrapper(nn.Module):
     def to(self, *args, **kwargs):
         self._forward_net[0].to(*args, **kwargs)
         return super().to(*args, **kwargs)
+
+    def train(self, mode=True):
+        super().train(mode)
+        self._forward_net[0].train(mode)
+        return self
 
     def forward(self, *args, **kwargs):
         _setchainattr(

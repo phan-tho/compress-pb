@@ -72,6 +72,11 @@ class QuantizingWrapper(nn.Module):
         self._forward_net[0].to(*args, **kwargs)
         return super().to(*args, **kwargs)
 
+    def train(self, mode=True):
+        super().train(mode)
+        self._forward_net[0].train(mode)
+        return self
+
     def forward(self, *args, **kwargs):
         _setchainattr(self._forward_net[0], "subspace_params", self.subspace_params)
         return self._forward_net[0](*args, **kwargs)
@@ -140,6 +145,14 @@ class IDModule(nn.Module):
             param.to(*args, **kwargs) for param in self.trainable_initparams
         ]
         return super().to(*args, **kwargs)
+
+    def train(self, mode=True):
+        # The wrapped network is intentionally kept outside PyTorch's module
+        # registry so that only the intrinsic vector is a model parameter.
+        # Propagate mode explicitly for dropout and BatchNorm semantics.
+        super().train(mode)
+        self._forward_net[0].train(mode)
+        return self
 
     def forward(self, *args, **kwargs):
         flat_projected_params = self.P @ self.subspace_params
