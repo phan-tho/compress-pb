@@ -1,5 +1,6 @@
 import logging
 import torch
+from torchvision import transforms
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
@@ -30,14 +31,17 @@ def main(
     indices_path=None,
     num_workers=4,
     distributed=False,
+    resize_to_224=False,
 ):
 
     random_seed_all(seed)
 
+    extra_transform = transforms.Resize((224, 224)) if resize_to_224 else None
     train_data, test_data = get_dataset(dataset,
                                         root=data_dir,
                                         train_subset=train_subset,
-                                        indices_path=indices_path)
+                                        indices_path=indices_path,
+                                        extra_transform=extra_transform)
 
     net = create_model(cfg_path=prenet_cfg_path,
                        device_id=device_id,
