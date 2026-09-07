@@ -3,6 +3,7 @@ from pathlib import Path
 from tqdm.auto import tqdm
 import torch
 import torch.nn as nn
+from torchvision import transforms
 from torch.utils.data import DataLoader
 from torch.optim import SGD, Adam, RMSprop, AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -43,17 +44,20 @@ def train(net, loader, criterion, optim, device=None, log_dir=None, epoch=None):
 def main(seed=137, device_id=0, distributed=False, data_dir=None, log_dir=None,
          dataset=None, train_subset=1, indices_path=None, label_noise=0, num_workers=2,
          cfg_path=None, transfer=False, model_name='resnet18k', base_width=None,
+         pretrained=False, resize_to_224=False,
          batch_size=128, optimizer='adam', lr=1e-3, momentum=.9, weight_decay=5e-4, epochs=0,
          intrinsic_dim=0, intrinsic_mode='filmrdkron',
          warmup_epochs=0, warmup_lr=.1):
 
   random_seed_all(seed)
 
+  extra_transform = transforms.Resize((224, 224)) if resize_to_224 else None
   train_data, test_data = get_dataset(
           dataset, root=data_dir,
           train_subset=train_subset,
           label_noise=label_noise,
-          indices_path=indices_path)
+          indices_path=indices_path,
+          extra_transform=extra_transform)
 
   train_loader = DataLoader(train_data, batch_size=batch_size, num_workers=num_workers,
                             shuffle=not distributed,
@@ -63,7 +67,8 @@ def main(seed=137, device_id=0, distributed=False, data_dir=None, log_dir=None,
 
   net = create_model(model_name=model_name, num_classes=train_data.num_classes, in_chans=train_data[0][0].size(0), base_width=base_width,
                      seed=seed, intrinsic_dim=intrinsic_dim, intrinsic_mode=intrinsic_mode,
-                     cfg_path=cfg_path, transfer=transfer, device_id=device_id, log_dir=log_dir)
+                     cfg_path=cfg_path, transfer=transfer, pretrained=pretrained,
+                     device_id=device_id, log_dir=log_dir)
   if distributed:
     # net = nn.SyncBatchNorm.convert_sync_batchnorm(net)
     net = nn.parallel.DistributedDataParallel(net, device_ids=[device_id], broadcast_buffers=True)

@@ -3,6 +3,7 @@ import yaml
 from pathlib import Path
 import timm
 import torch
+from torchvision.models import resnet18, ResNet18_Weights
 
 from ..logging import wandb
 from .projectors import create_intrinsic_model
@@ -10,7 +11,7 @@ from .projectors import create_intrinsic_model
 
 def create_model(model_name=None, num_classes=None, base_width=None, in_chans=None,
                  seed=None, intrinsic_dim=0, intrinsic_mode='sparse',
-                 cfg_path=None, transfer=False, device_id=None, log_dir=None):
+                 cfg_path=None, transfer=False, pretrained=False, device_id=None, log_dir=None):
 
   device = torch.device(f'cuda:{device_id}') if isinstance(device_id, int) else None
 
@@ -33,8 +34,10 @@ def create_model(model_name=None, num_classes=None, base_width=None, in_chans=No
     id_ckpt_file = net_cfg.get('ckpt_file', 'best_sgd_model.pt') if intrinsic_cfg is not None else\
                    None
     id_ckpt_path = Path(cfg_path).parent / id_ckpt_file if id_ckpt_file is not None else None
+    transfer = net_cfg.pop('transfer', transfer)
   else:
-    net_cfg = dict(model_name=model_name, num_classes=num_classes, in_chans=in_chans)
+    net_cfg = dict(model_name=model_name, num_classes=num_classes, in_chans=in_chans,
+                   pretrained=pretrained)
     if base_width is not None:
       net_cfg['base_width'] = base_width
 
@@ -43,15 +46,29 @@ def create_model(model_name=None, num_classes=None, base_width=None, in_chans=No
     intrinsic_cfg = dict(intrinsic_dim=intrinsic_dim, intrinsic_mode=intrinsic_mode, seed=seed)
 
   ## Load base model.
-  base_net = timm.create_model(**net_cfg, checkpoint_path=base_ckpt_path)
+  if net_cfg['model_name'] == 'torchvision_resnet18':
+    # Use torchvision's official ImageNet-1k checkpoint, then let the existing
+    # transfer path below replace its classifier for the CIFAR task.
+    weights = ResNet18_Weights.IMAGENET1K_V1 if net_cfg.get('pretrained') else None
+    base_net = resnet18(weights=weights)
+    if not transfer and net_cfg['num_classes'] != 1000:
+      base_net.fc = torch.nn.Linear(base_net.fc.in_features, net_cfg['num_classes'])
+  else:
+    net_cfg.pop('pretrained', None)
+    base_net = timm.create_model(**net_cfg, checkpoint_path=base_ckpt_path)
   if base_ckpt_path is not None:
     logging.info(f'Loaded base model from "{base_ckpt_path}".')
 
   ## Replace classifier head for transfer learning.
   if transfer:
-    base_net.reset_classifier(num_classes)
+    if hasattr(base_net, 'reset_classifier'):
+      base_net.reset_classifier(num_classes)
+    else:
+      base_net.fc = torch.nn.Linear(base_net.fc.in_features, num_classes)
     net_cfg['num_classes'] = num_classes
     logging.info(f'Reset classifier for {num_classes} classes.')
+  if net_cfg['model_name'] == 'torchvision_resnet18' and base_ckpt_path is not None:
+    base_net.load_state_dict(torch.load(base_ckpt_path, map_location='cpu'))
 
   base_net = base_net.to(device)
   if log_dir is not None:
@@ -69,6 +86,7 @@ def create_model(model_name=None, num_classes=None, base_width=None, in_chans=No
   ## Bookkeeping.
   if log_dir is not None:
     dump_cfg = dict(**net_cfg)
+    dump_cfg['transfer'] = bool(transfer)
     if intrinsic_cfg is not None:
       dump_cfg['intrinsic'] = intrinsic_cfg
     with open(Path(log_dir) / 'net.cfg.yml', 'w') as f:
