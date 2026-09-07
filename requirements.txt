@@ -11,4 +11,3 @@ scipy
 pandas
 scikit-learn
 timm
-olive-oil-ml

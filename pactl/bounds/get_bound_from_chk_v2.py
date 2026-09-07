@@ -60,7 +60,7 @@ def eval_perturbed_model(
         acc_samples = DistributedValue(acc_samples)
 
     while std_err > 3e-3:
-        for X, Y in tqdm(loader, desc='quantized acc eval'):
+        for X, Y in loader:
             module.subspace_params.data = orig_weights + \
                 scale * torch.randn_like(orig_weights)
 
@@ -217,7 +217,7 @@ def total_nll_bits(
     if distributed:
         nll = DistributedValue(nll)
 
-    for x, y in tqdm(loader, desc='evaluating nll', leave=False):
+    for x, y in loader:
         # compute log probabilities and index them by the labels
         logprobs = model(x.to(device)).log_softmax(dim=1)[np.arange(y.shape[0]), y]
         nll += -logprobs.sum().cpu().data.item() / np.log(2)

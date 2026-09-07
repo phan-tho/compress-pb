@@ -1,4 +1,6 @@
 import logging
+import json
+from pathlib import Path
 import torch
 from torchvision import transforms
 from torch.utils.data import DataLoader
@@ -79,6 +81,9 @@ def main(
     )
     if log_dir is not None:
         logging.info(bound_metrics, extra=dict(wandb=True))
+        result_path = Path(log_dir) / 'certificate.json'
+        result_path.write_text(json.dumps(bound_metrics, indent=2, default=float) + '\n')
+        print(json.dumps(bound_metrics, indent=2, default=float))
 
 
 def entrypoint(log_dir=None, **kwargs):

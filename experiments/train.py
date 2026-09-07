@@ -24,7 +24,7 @@ from pactl.optim.schedulers import construct_warm_stable_cosine
 def train(net, loader, criterion, optim, device=None, log_dir=None, epoch=None):
   net.train()
 
-  for i, (X, Y) in tqdm(enumerate(loader), leave=False):
+  for i, (X, Y) in enumerate(loader):
     X, Y = X.to(device), Y.to(device)
 
     optim.zero_grad()
@@ -117,7 +117,7 @@ def main(seed=137, device_id=0, distributed=False, data_dir=None, log_dir=None,
       warm_epochs=[warmup_epochs], lr_goal=[warmup_lr], scheduler_after=[optim_scheduler])
 
   best_acc_so_far = 0.
-  for e in tqdm(range(epochs)):
+  for e in range(epochs):
     if distributed:
       train_loader.sampler.set_epoch(e)
 

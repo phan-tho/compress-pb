@@ -80,6 +80,8 @@ def set_logging(metrics_extra_key='wandb', log_dir=None):
     wandb.init(mode=os.environ.get('WANDB_MODE', default='offline'))
 
     log_dir = get_log_dir(log_dir=log_dir)
+    # Callers commonly pass a fresh Kaggle working-directory path.
+    log_dir.mkdir(parents=True, exist_ok=True)
 
     _CONFIG = {
         'version': 1,

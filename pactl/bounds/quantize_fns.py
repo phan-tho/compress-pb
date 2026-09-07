@@ -132,10 +132,10 @@ def run_sgd_prunned(
     epochs=0,
 ):
 
-    for e in tqdm(range(epochs)):
+    for e in range(epochs):
         net.train()
         logging.debug(f"centroids: {net.centroids}")
-        for i, (X, Y) in tqdm(enumerate(train_loader), leave=False):
+        for i, (X, Y) in enumerate(train_loader):
             X, Y = X.to(device), Y.to(device)
             optim.zero_grad()
             f_hat = net(X)
@@ -158,12 +158,12 @@ def run_sgd(
     epochs=0,
 ):
 
-    for e in tqdm(range(epochs)):
+    for e in range(epochs):
         net.train()
         logging.debug(f"centroids: {net.centroids}")
         N_acc = 0
         N = len(train_loader.dataset)
-        for i, (X, Y) in tqdm(enumerate(train_loader), leave=False):
+        for i, (X, Y) in enumerate(train_loader):
             X, Y = X.to(device), Y.to(device)
             optim.zero_grad()
             f_hat = net(X)
